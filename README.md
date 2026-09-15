@@ -2,7 +2,7 @@
 
 A complete business-analysis package for a digital personal-loan origination system at a mid-sized Indian NBFC: from problem statement and stakeholder analysis through functional requirements, business rules, user stories, process flows, prioritisation, API contract and test scenarios — plus a clickable prototype that runs the actual credit rules in the browser.
 
-**Live prototype:** open (https://a-yadav-bakki.github.io/Loan-Application-Approval-System-BA-case-study/) in a browser, or enable GitHub Pages on this repo and use the published link. Two separate apps — a customer portal and an officer console — share one rule engine and one set of demo data.
+**Live prototype:** [Open the prototype](https://a-yadav-bakki.github.io/Loan-Application-Approval-System-BA-case-study/) — two separate apps, a [customer portal](https://a-yadav-bakki.github.io/Loan-Application-Approval-System-BA-case-study/applicant.html) and an [officer console](https://a-yadav-bakki.github.io/Loan-Application-Approval-System-BA-case-study/officer.html), share one rule engine and one set of demo data.
 
 ---
 
@@ -104,7 +104,7 @@ The demo bureau score is derived from income so reviewers can steer outcomes wit
 
 ## Related project
 
-This is the second case study in a series. The first, an **Order Management System**(https://github.com/a-yadav-bakki/Order-Management-System), follows the same structure and can be found in my other repositories. 
+This is the second case study in a series. The first, an [Order Management System](https://github.com/a-yadav-bakki/YOUR-OMS-REPO-NAME), follows the same structure. 
 
 ## Licence
 

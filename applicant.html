@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apply for a personal loan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .applicant{max-width:640px;margin:0 auto}
+  .rail{display:flex;margin-bottom:20px;border-bottom:2px solid var(--line)}
+  .rail div{flex:1;padding:8px 0 10px;font-size:13px;color:var(--ink-2);position:relative}
+  .rail div::after{content:"";position:absolute;left:0;right:0;bottom:-2px;height:2px;background:transparent}
+  .rail div.done{color:var(--primary)} .rail div.done::after{background:var(--primary)}
+  .rail div.current{color:var(--ink);font-weight:600} .rail div.current::after{background:var(--ink)}
+  .emi{background:var(--ink);color:#fff;border-radius:var(--radius);padding:22px 24px;margin:18px 0;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .emi .big{font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1}
+  .emi .lbl{font-size:13px;opacity:.75;margin-top:6px}
+  .emi .foir{border-left:1px solid rgba(255,255,255,.2);padding-left:16px}
+  .emi .gauge{height:8px;background:rgba(255,255,255,.15);border-radius:4px;margin-top:10px;overflow:hidden}
+  .emi .gauge i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s ease}
+  .elig{margin-top:12px;padding:10px 12px;border-radius:8px;font-weight:500;font-size:14px}
+  .elig.ok{background:var(--primary-soft);color:var(--primary)} .elig.warn{background:var(--accent-soft);color:#7a4d00} .elig.bad{background:var(--danger-soft);color:var(--danger)}
+  .elig small{display:block;font-weight:400;opacity:.85}
+  input[type=range]{width:100%;accent-color:var(--primary)}
+  .range-head{display:flex;justify-content:space-between;font-weight:500;margin-bottom:2px}
+  .doc{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)} .doc:last-child{border-bottom:0}
+  .doc .ic{width:38px;height:44px;border:2px solid var(--ink-2);border-radius:4px;position:relative;flex:none}
+  .doc .ic::after{content:"";position:absolute;right:-2px;top:-2px;width:12px;height:12px;background:var(--surface);border-left:2px solid var(--ink-2);border-bottom:2px solid var(--ink-2)}
+  .doc .name{flex:1} .doc .name small{display:block;color:var(--ink-2)}
+  dl.review{display:grid;grid-template-columns:180px 1fr;gap:6px 12px;margin:0 0 16px}
+  dl.review dt{color:var(--ink-2)} dl.review dd{margin:0;font-weight:500}
+  .consent{display:flex;gap:10px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:8px;background:#FAFBFC}
+  .consent.flag{border-color:var(--danger);background:var(--danger-soft)} .consent input{margin-top:4px}
+  .ref{font-size:13px;color:var(--ink-2)} .ref b{color:var(--ink);font-size:16px}
+  .tracker{list-style:none;padding:0;margin:20px 0}
+  .tracker li{display:grid;grid-template-columns:28px 1fr;gap:12px;padding:0 0 22px;position:relative}
+  .tracker li::before{content:"";position:absolute;left:13px;top:26px;bottom:0;width:2px;background:var(--line)}
+  .tracker li:last-child::before{display:none}
+  .tracker .dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--ink-2)}
+  .tracker li.done .dot{background:var(--primary);border-color:var(--primary);color:#fff}
+  .tracker li.current .dot{border-color:var(--ink);color:var(--ink)}
+  .tracker li.skipped .dot{border-style:dashed}
+  .tracker li.done .t,.tracker li.current .t{font-weight:600}
+  .tracker .t small{display:block;font-weight:400;color:var(--ink-2)}
+  .outcome{padding:18px;border-radius:var(--radius);margin-top:6px}
+  .outcome.ok{background:var(--primary-soft)} .outcome.bad{background:var(--danger-soft)} .outcome.warn{background:var(--accent-soft)} .outcome.info{background:var(--info-soft)}
+  .outcome h3{margin:0 0 6px;font-size:17px}
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+  .compare div{background:#fff;padding:12px;border-radius:8px;border:1px solid var(--line)}
+  .compare .k{font-size:12px;color:var(--ink-2)} .compare .v{font-weight:600;font-size:18px}
+  .past{margin-top:22px;font-size:14px} .past li{margin:4px 0}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">Personal loan <small>Customer portal</small></a>
+  <div class="user hidden" id="userBar"><span id="userMobile"></span><button onclick="logout()">Sign out</button></div>
+</header>
+
+<main>
+<!-- ===== LOGIN ===== -->
+<section id="login" class="login">
+  <div class="card">
+    <div id="loginStep1">
+      <h1>Sign in to apply</h1>
+      <p class="lede">We'll send a one-time password to your mobile. No password to remember.</p>
+      <div class="field"><label for="mobile">Mobile number</label><input id="mobile" inputmode="numeric" maxlength="10" placeholder="10-digit mobile" value="9876543210"><div class="err" id="e-mobile"></div></div>
+      <button class="btn primary" style="width:100%" onclick="sendOtp()">Send OTP</button>
+      <div class="demo-box">Demo: any 10-digit number starting 6–9 works. New numbers start a fresh application; a number with an existing application opens its tracker. Seeded examples: <code>9820011111</code> (under review), <code>9820044444</code> (document requested).</div>
+    </div>
+    <div id="loginStep2" class="hidden">
+      <h1>Enter the OTP</h1>
+      <p class="lede">Sent to <b id="otpTo"></b>. Valid for 5 minutes.</p>
+      <div class="field"><input id="otp" class="otp" inputmode="numeric" maxlength="6" placeholder="••••••"><div class="err" id="e-otp"></div></div>
+      <button class="btn primary" style="width:100%" onclick="verifyOtp()">Verify and continue</button>
+      <div class="actions" style="justify-content:center;margin-top:12px"><button class="btn sm" onclick="showLogin(1)">Change number</button><button class="btn sm" onclick="sendOtp()">Resend OTP</button></div>
+      <div class="demo-box">Demo OTP: <code id="demoOtp"></code> — three wrong attempts lock the number for 15 minutes (US-01).</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== APPLICATION ===== -->
+<section id="app" class="applicant hidden">
+  <div id="formView">
+    <div class="rail" id="rail"><div>1 · Personal & KYC</div><div>2 · Loan details</div><div>3 · Documents</div><div>4 · Review & submit</div></div>
+
+    <div class="card" id="step1">
+      <h1>Tell us about yourself</h1>
+      <p class="lede">Enter your details exactly as they appear on your PAN card.</p>
+      <div class="row">
+        <div class="field"><label for="name">Full name (as per PAN)</label><input id="name" value="Priya Sharma"><div class="err" id="e-name"></div></div>
+        <div class="field"><label for="dob">Date of birth</label><input id="dob" type="date" value="1994-03-12"><div class="err" id="e-dob"></div></div>
+      </div>
+      <div class="row">
+        <div class="field"><label for="pan">PAN</label><input id="pan" value="ABCDE1234F" maxlength="10" style="text-transform:uppercase"><div class="err" id="e-pan"></div></div>
+        <div class="field"><label>Mobile (verified)</label><input id="mobileRO" disabled></div>
+      </div>
+      <div class="field"><label for="addr">Current address</label><input id="addr" value="14, Marine Lines, Mumbai 400002"><div class="err" id="e-addr"></div></div>
+      <div class="row">
+        <div class="field"><label for="emp">Employment type</label><select id="emp"><option value="Salaried">Salaried</option><option value="SelfEmployed">Self-employed</option></select></div>
+        <div class="field"><label for="employer" id="employerLbl">Employer</label><input id="employer" value="Meridian Software Pvt Ltd"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label for="years" id="yearsLbl">Years with employer</label><input id="years" type="number" value="4" min="0" step="0.5"></div>
+        <div class="field"><label for="income">Net monthly income (₹)</label><input id="income" type="number" value="80000" min="0" step="1000"><div class="err" id="e-income"></div></div>
+      </div>
+      <div class="field"><label for="emi0">Existing monthly EMIs (₹)</label><input id="emi0" type="number" value="5000" min="0" step="500"></div>
+      <div class="actions"><span></span><span class="saved" id="saved1"></span><button class="btn primary" onclick="next(1)">Continue</button></div>
+    </div>
+
+    <div class="card hidden" id="step2">
+      <h1>How much do you need?</h1>
+      <p class="lede">Your EMI updates as you adjust the amount and tenure.</p>
+      <div class="field"><div class="range-head"><label for="amount">Loan amount</label><span id="amountLbl"></span></div><input id="amount" type="range" min="50000" max="1500000" step="5000" value="300000" oninput="calc()"></div>
+      <div class="field"><div class="range-head"><label for="tenure">Tenure</label><span id="tenureLbl"></span></div><input id="tenure" type="range" min="12" max="60" step="1" value="36" oninput="calc()"></div>
+      <div class="field"><label for="purpose">Purpose</label><select id="purpose"><option>Home renovation</option><option>Medical</option><option>Education</option><option>Wedding</option><option>Travel</option><option>Debt consolidation</option><option>Other</option></select></div>
+      <div class="emi">
+        <div><div class="big" id="emiBig">₹0</div><div class="lbl">Indicative monthly EMI at <span id="rateLbl"></span> p.a. — final rate depends on assessment</div></div>
+        <div class="foir"><div class="big" id="foirBig">0%</div><div class="lbl">Share of income going to EMIs (FOIR)</div><div class="gauge"><i id="gauge"></i></div></div>
+      </div>
+      <div class="elig" id="elig"></div>
+      <div class="actions"><button class="btn" onclick="goto(1)">Back</button><span class="saved" id="saved2"></span><button class="btn primary" onclick="next(2)">Continue</button></div>
+    </div>
+
+    <div class="card hidden" id="step3">
+      <h1>Upload your documents</h1>
+      <p class="lede">PDF, JPG or PNG, up to 5 MB each. Tap "Upload" to simulate a file upload.</p>
+      <div id="docList"></div>
+      <div class="err" id="e-docs" style="margin-top:8px"></div>
+      <div class="actions"><button class="btn" onclick="goto(2)">Back</button><span class="saved" id="saved3"></span><button class="btn primary" onclick="next(3)">Continue</button></div>
+    </div>
+
+    <div class="card hidden" id="step4">
+      <h1>Review and submit</h1>
+      <p class="lede">Check everything once. You can go back to change any section.</p>
+      <dl class="review" id="reviewList"></dl>
+      <div class="consent" id="consentBox"><input type="checkbox" id="consent"><label for="consent">I authorise the lender to obtain my credit report from a credit bureau to assess this application, and I have read the privacy notice. This is required to proceed.</label></div>
+      <div class="actions"><button class="btn" onclick="goto(3)">Back</button><span></span><button class="btn primary" onclick="submitApp()">Submit application</button></div>
+    </div>
+  </div>
+
+  <div class="card hidden" id="trackerView">
+    <div class="ref">Application reference <b id="refNo"></b></div>
+    <h1 style="margin-top:6px">Your application status</h1>
+    <ul class="tracker" id="tracker"></ul>
+    <div id="outcome"></div>
+    <div id="pastBox" class="past hidden"></div>
+    <div class="actions" style="justify-content:flex-start"><button class="btn hidden" id="newAppBtn" onclick="startNew()">Start a new application</button></div>
+  </div>
+</section>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="shared.js"></script>
+<script>
+let apps = loadApps();
+const SESSION='laas.applicant.session'; let session = sessionStorage.getItem(SESSION);
+let otpAttempts=0; let step=1; let uploads={}; let myApp=null;
+const v = id => document.getElementById(id).value.trim();
+
+/* ---- login ---- */
+function showLogin(n){ document.getElementById('loginStep1').classList.toggle('hidden', n!==1); document.getElementById('loginStep2').classList.toggle('hidden', n!==2); }
+function sendOtp(){ const m=v('mobile'); if(!/^[6-9]\d{9}$/.test(m)){ document.getElementById('e-mobile').textContent='Enter a valid 10-digit mobile number'; return; }
+  document.getElementById('e-mobile').textContent=''; document.getElementById('otpTo').textContent='+91 '+m; document.getElementById('demoOtp').textContent=DEMO_OTP; otpAttempts=0; document.getElementById('otp').value=''; document.getElementById('e-otp').textContent=''; showLogin(2); toast('OTP sent to +91 '+m); document.getElementById('otp').focus(); }
+function verifyOtp(){ const o=v('otp'); const e=document.getElementById('e-otp');
+  if(otpAttempts>=3){ e.textContent='Too many attempts. Try again after 15 minutes.'; return; }
+  if(o!==DEMO_OTP){ otpAttempts++; e.textContent= otpAttempts>=3 ? 'Too many attempts. Try again after 15 minutes.' : `Incorrect OTP (${3-otpAttempts} attempt${3-otpAttempts===1?'':'s'} left)`; return; }
+  session=v('mobile'); sessionStorage.setItem(SESSION, session); enter(); }
+function logout(){ sessionStorage.removeItem(SESSION); session=null; location.reload(); }
+
+/* ---- routing after login ---- */
+function enter(){
+  document.getElementById('login').classList.add('hidden'); document.getElementById('app').classList.remove('hidden');
+  document.getElementById('userBar').classList.remove('hidden'); document.getElementById('userMobile').textContent='+91 '+session;
+  document.getElementById('mobileRO').value='+91 '+session;
+  apps = loadApps();
+  const mine = apps.filter(a=>a.mobile===session).sort((a,b)=>b.submittedAt-a.submittedAt);
+  myApp = mine[0]||null;
+  if(myApp){ showTracker(); } else { showForm(); }
+}
+function showForm(){ document.getElementById('trackerView').classList.add('hidden'); document.getElementById('formView').classList.remove('hidden'); goto(1); }
+function showTracker(){ document.getElementById('formView').classList.add('hidden'); document.getElementById('trackerView').classList.remove('hidden'); renderTracker(); }
+function startNew(){ uploads={}; document.getElementById('consent').checked=false; showForm(); }
+
+/* ---- form ---- */
+document.getElementById('emp').addEventListener('change', e=>{ const s=e.target.value==='Salaried'; document.getElementById('employerLbl').textContent=s?'Employer':'Business name'; document.getElementById('yearsLbl').textContent=s?'Years with employer':'Years in business'; uploads={}; });
+function goto(n){ step=n; for(let i=1;i<=4;i++) document.getElementById('step'+i).classList.toggle('hidden', i!==n);
+  [...document.getElementById('rail').children].forEach((d,i)=>{ d.className=i+1<n?'done':i+1===n?'current':''; });
+  if(n===2) calc(); if(n===3) renderDocs(); if(n===4) renderReview(); window.scrollTo({top:0}); }
+function setErr(id,msg){ const e=document.getElementById('e-'+id); const inp=document.getElementById(id); if(e) e.textContent=msg; if(inp) inp.setAttribute('aria-invalid', msg?'true':'false'); return !msg; }
+function validate1(){ let ok=true;
+  ok &= setErr('name', v('name')?'':'Enter your name as it appears on your PAN');
+  const a=ageOf(v('dob')); ok &= setErr('dob', !v('dob')?'Enter your date of birth':(a<21||a>60)?'Applicants must be between 21 and 60 years old':'');
+  ok &= setErr('pan', /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(v('pan').toUpperCase())?'':'Enter PAN in the format ABCDE1234F');
+  ok &= setErr('addr', v('addr')?'':'Enter your current address');
+  ok &= setErr('income', +v('income')>0?'':'Enter your net monthly income');
+  return !!ok; }
+function next(n){ if(n===1&&!validate1()) return;
+  if(n===3){ if(Object.values(uploads).some(u=>!u)){ document.getElementById('e-docs').textContent='Upload all required documents to continue.'; return; } }
+  document.getElementById('saved'+n).textContent='Saved ✓'; goto(n+1); }
+function calc(){ const amount=+v('amount'), tenure=+v('tenure'), income=+v('income')||1, emi0=+v('emi0')||0;
+  document.getElementById('amountLbl').textContent=INR(amount); document.getElementById('tenureLbl').textContent=tenure+' months';
+  const rate=rateFor('B',tenure), emi=emiCalc(amount,rate,tenure), foir=(emi0+emi)/income;
+  document.getElementById('rateLbl').textContent=rate+'%'; document.getElementById('emiBig').textContent=INR(emi);
+  document.getElementById('foirBig').textContent=Math.round(foir*100)+'%'; document.getElementById('gauge').style.width=Math.min(100,foir*100)+'%';
+  const el=document.getElementById('elig');
+  if(foir<=.40){ el.className='elig ok'; el.innerHTML='Likely eligible<small>Based on your declared income and EMIs. This is an indication, not a decision.</small>'; }
+  else if(foir<=.60){ el.className='elig warn'; el.innerHTML='Borderline<small>Consider a lower amount or a longer tenure. This is an indication, not a decision.</small>'; }
+  else { el.className='elig bad'; el.innerHTML='Unlikely to be approved at this amount<small>EMIs would exceed 60% of your income. You can still submit.</small>'; } }
+function renderDocs(){ const tpl=docTemplate(v('emp')); const box=document.getElementById('docList'); box.innerHTML='';
+  for(const k in uploads) if(!(k in tpl)) delete uploads[k];
+  for(const k in tpl){ if(!(k in uploads)) uploads[k]=null; const row=document.createElement('div'); row.className='doc';
+    row.innerHTML=`<div class="ic"></div><div class="name">${tpl[k].label}<small>${tpl[k].sub}</small></div>`+(uploads[k]?`<span class="tag ok">${uploads[k]}</span><button class="btn sm" onclick="removeDoc('${k}')">Remove</button>`:`<span class="tag pending">Required</span><button class="btn sm primary" onclick="upload('${k}')">Upload</button>`);
+    box.appendChild(row); } }
+function upload(k){ uploads[k]=k.toLowerCase()+'.pdf'; document.getElementById('e-docs').textContent=''; renderDocs(); toast('Uploaded '+uploads[k]+' (2.1 MB)'); }
+function removeDoc(k){ uploads[k]=null; renderDocs(); }
+function renderReview(){ const amount=+v('amount'), tenure=+v('tenure'); const emi=emiCalc(amount,rateFor('B',tenure),tenure);
+  const rows=[['Name',v('name')],['Date of birth',new Date(v('dob')).toLocaleDateString('en-IN')],['PAN',v('pan').toUpperCase()],['Mobile','+91 '+session],['Employment',(v('emp')==='Salaried'?'Salaried · ':'Self-employed · ')+v('employer')],['Net monthly income',INR(+v('income'))],['Existing EMIs',INR(+v('emi0'))],['Loan amount',INR(amount)],['Tenure',tenure+' months'],['Purpose',v('purpose')],['Indicative EMI',INR(emi)+' / month'],['Documents',Object.values(uploads).filter(Boolean).length+' uploaded']];
+  document.getElementById('reviewList').innerHTML=rows.map(r=>`<dt>${r[0]}</dt><dd>${r[1]}</dd>`).join(''); }
+function submitApp(){ const c=document.getElementById('consent'), box=document.getElementById('consentBox');
+  if(!c.checked){ box.classList.add('flag'); c.focus(); return; } box.classList.remove('flag');
+  const income=+v('income'); const pan=v('pan').toUpperCase();
+  let score=650+Math.min(200, Math.round(income/600)); if(pan.endsWith('Z')) score=640; const recentDefault=pan.endsWith('X');
+  apps=loadApps();
+  myApp=mkApp(apps,{ mobile:session, name:v('name'), dob:v('dob'), pan, emp:v('emp'), employer:v('employer'), years:+v('years')||0, income, existingEmi:+v('emi0')||0, amount:+v('amount'), tenure:+v('tenure'), purpose:v('purpose'), score, recentDefault, submittedAt:Date.now() });
+  myApp.docs={}; for(const k in uploads) myApp.docs[k]={status:'Pending', file:uploads[k]};
+  myApp.history.push({t:Date.now(), text:'Submitted with bureau consent'}); myApp.history.push({t:Date.now(), text:'PAN verified · Identity verified · Bureau score '+score});
+  runDecision(myApp); apps.unshift(myApp); saveApps(apps);
+  showTracker(); toast('Application submitted — reference '+myApp.ref+' sent by SMS and email'); }
+
+/* ---- tracker ---- */
+function renderTracker(){ apps=loadApps(); myApp=apps.find(x=>x.ref===myApp.ref)||myApp; const a=myApp; document.getElementById('refNo').textContent=a.ref;
+  const st=a.status; const decided=['Approved','Rejected','CounterOffered','SentToLMS','Expired'].includes(st); const labels=docTemplate(a.emp);
+  const stages=[
+    {t:'Submitted', s:'done', d:a.submittedAt},
+    {t:'Verification', s: st==='DocsRequested'?'current':'done', d:a.submittedAt, sub: st==='DocsRequested'?'We need one document again — see below':'PAN, identity and documents checked'},
+    {t:'Under review', s: st==='UnderReview'?'current': decided?(a.decidedBy==='System'?'skipped':'done'):'', sub: st==='UnderReview'?'A credit officer is reviewing your application': a.decidedBy==='System'&&decided?'Not needed — decided automatically':''},
+    {t:'Decision', s: decided?'done':'', d:a.decidedAt},
+    {t:'Sent for disbursement', s: st==='SentToLMS'?'done':''} ];
+  document.getElementById('tracker').innerHTML=stages.map((x,i)=>`<li class="${x.s}"><div class="dot">${x.s==='done'?'✓':i+1}</div><div class="t">${x.t}<small>${x.sub||(x.d?fmtDT(x.d):'')}</small></div></li>`).join('');
+  const o=document.getElementById('outcome');
+  if(st==='Approved'||st==='SentToLMS') o.innerHTML=`<div class="outcome ok"><h3>Approved</h3>${INR(a.amount)} over ${a.tenure} months at ${a.rate}% p.a. — EMI ${INR(a.emi)}. ${st==='SentToLMS'?'Your loan has been sent for disbursement.':'We are preparing your loan for disbursement; you will hear from us within one working day.'}</div>`;
+  else if(st==='Rejected') o.innerHTML=`<div class="outcome bad"><h3>We couldn't approve this application</h3>Reason: ${REASONS[a.reason]||'Policy'}.${a.notes?' '+a.notes:''} You can request a copy of the decision details from support.</div>`;
+  else if(st==='Expired') o.innerHTML=`<div class="outcome bad"><h3>Offer expired</h3>The revised offer was not accepted within 7 days. You can start a new application.</div>`;
+  else if(st==='CounterOffered') o.innerHTML=`<div class="outcome warn"><h3>We can offer revised terms</h3>The requested amount wasn't approved, but you're eligible for the following. This offer is valid for 7 days.<div class="compare"><div><div class="k">You asked for</div><div class="v">${INR(a.amount)} · ${a.tenure} mo</div><div class="k">EMI ${INR(a.emi)}</div></div><div><div class="k">We can offer</div><div class="v">${INR(a.counter.amount)} · ${a.counter.tenure} mo</div><div class="k">EMI ${INR(a.counter.emi)} at ${a.counter.rate}%</div></div></div><button class="btn primary" onclick="offer(true)">Accept revised offer</button> <button class="btn" onclick="offer(false)">Decline</button></div>`;
+  else if(st==='DocsRequested'){ const d=Object.entries(a.docs).find(([k,x])=>x.status==='ReuploadRequested'); o.innerHTML=`<div class="outcome warn"><h3>One document needs to be uploaded again</h3>${d?labels[d[0]].label+' — '+d[1].reason:''}. Only this step is reopened; nothing else changes.<div style="margin-top:10px"><button class="btn primary" onclick="reupload('${d?d[0]:''}')">Upload again</button></div></div>`; }
+  else o.innerHTML=`<div class="outcome info"><h3>In progress</h3>We'll message you as soon as there's an update. Most applications are decided within 3 working days.</div>`;
+  document.getElementById('newAppBtn').classList.toggle('hidden', !CLOSED.includes(st));
+  const past=apps.filter(x=>x.mobile===session && x.ref!==a.ref); const pb=document.getElementById('pastBox'); pb.classList.toggle('hidden', past.length===0);
+  pb.innerHTML=past.length?`<b>Earlier applications</b><ul>${past.map(x=>`<li>${x.ref} · ${INR(x.amount)} · ${statusTag(x.status)}</li>`).join('')}</ul>`:''; }
+function persist(){ const i=apps.findIndex(x=>x.ref===myApp.ref); if(i>=0) apps[i]=myApp; saveApps(apps); }
+function offer(accept){ const a=myApp; if(accept){ a.amount=a.counter.amount; a.tenure=a.counter.tenure; a.rate=a.counter.rate; a.emi=a.counter.emi; a.status='Approved'; a.history.push({t:Date.now(),text:'Applicant accepted counter-offer'}); toast('Offer accepted — approved at revised terms'); }
+  else { a.status='Rejected'; a.reason='OTHER'; a.notes='Counter-offer declined by applicant.'; a.history.push({t:Date.now(),text:'Applicant declined counter-offer'}); }
+  a.decidedAt=Date.now(); persist(); renderTracker(); }
+function reupload(k){ const a=myApp; a.docs[k]={status:'Pending', file:k.toLowerCase()+'-v2.pdf'}; a.status='UnderReview'; a.history.push({t:Date.now(),text:'Applicant re-uploaded '+k}); persist(); toast('Uploaded — back with the credit team'); renderTracker(); }
+
+if(session) enter(); else showLogin(1);
+</script>
+</body>
+</html>

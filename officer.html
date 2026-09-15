@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Credit officer console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .console{display:grid;grid-template-columns:400px 1fr;gap:20px}
+  @media (max-width:900px){.console{grid-template-columns:1fr}}
+  .console-head{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .console-head h1{margin:0}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;font-weight:600;color:var(--ink-2);font-size:12px;padding:8px 6px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}
+  th .arrow{opacity:.5}
+  td{padding:10px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tr.item{cursor:pointer} tr.item:hover{background:#F6F8FA} tr.item.sel{background:var(--info-soft)}
+  .qfilters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 12px;font-size:13px}
+  .chip[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .empty{color:var(--ink-2);padding:30px 10px;text-align:center}
+  .detail h2{margin-bottom:2px} .detail .sub{color:var(--ink-2);margin-bottom:16px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:700px){.grid2{grid-template-columns:1fr}}
+  .panel{border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:16px}
+  .panel h3{margin:0 0 10px;font-size:14px;color:var(--ink-2);font-weight:600}
+  .kv{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:14px}
+  .kv span:nth-child(odd){color:var(--ink-2)} .kv span:nth-child(even){font-weight:500;text-align:right}
+  .rules td.fail{color:var(--danger);font-weight:600} .rules td.pass{color:var(--primary);font-weight:600}
+  .rules tr.fail td{background:var(--danger-soft)} .rules th{cursor:default}
+  .doc{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px} .doc:last-child{border:0}
+  .doc .name{flex:1} .doc .name small{display:block;color:var(--ink-2)}
+  .history{list-style:none;padding:0;margin:0;font-size:13px}
+  .history li{padding:6px 0;border-bottom:1px dashed var(--line)} .history li:last-child{border:0}
+  .history time{color:var(--ink-2);margin-right:8px}
+  .decide{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .decide .full{grid-column:1/-1}
+  .decide label{display:block;font-weight:500;margin-bottom:4px;font-size:14px}
+  .decide select,.decide input,.decide textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  .decide textarea{min-height:64px;resize:vertical}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">Personal loan <small>Credit officer console</small></a>
+  <div class="user hidden" id="userBar"><span id="userName"></span><button onclick="logout()">Sign out</button></div>
+</header>
+
+<main>
+<!-- ===== LOGIN ===== -->
+<section id="login" class="login">
+  <div class="card">
+    <h1>Officer sign-in</h1>
+    <p class="lede">Internal system. Access is role-based; your role sets your approval limit.</p>
+    <div class="field"><label for="uid">User ID</label><input id="uid" value="m.iyer" autocomplete="username"></div>
+    <div class="field"><label for="pwd">Password</label><input id="pwd" type="password" value="demo" autocomplete="current-password"><div class="err" id="e-login"></div></div>
+    <button class="btn primary" style="width:100%" onclick="signIn()">Sign in</button>
+    <div class="demo-box">Demo users (password <code>demo</code>):<br><code>m.iyer</code> — Credit Officer, limit ₹5,00,000<br><code>r.kulkarni</code> — Senior Credit Officer, limit ₹15,00,000</div>
+  </div>
+</section>
+
+<!-- ===== CONSOLE ===== -->
+<section id="console" class="hidden">
+  <div class="console-head">
+    <h1>Review queue</h1>
+    <span class="tag pending" id="queueCount"></span>
+    <span class="hint" style="margin-left:auto">Rule set v1.0 · <button class="btn sm" onclick="refresh()">Refresh</button></span>
+  </div>
+  <div class="console">
+    <div class="card">
+      <div class="qfilters" id="qfilters">
+        <button class="chip" aria-pressed="true" data-f="open" onclick="setFilter('open')">Awaiting review</button>
+        <button class="chip" aria-pressed="false" data-f="docs" onclick="setFilter('docs')">Docs requested</button>
+        <button class="chip" aria-pressed="false" data-f="decided" onclick="setFilter('decided')">Decided</button>
+        <button class="chip" aria-pressed="false" data-f="all" onclick="setFilter('all')">All</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th onclick="setSort('submitted')">Age <span class="arrow" id="s-submitted"></span></th>
+          <th>Applicant</th>
+          <th onclick="setSort('amount')">Amount <span class="arrow" id="s-amount"></span></th>
+          <th onclick="setSort('grade')">Grade <span class="arrow" id="s-grade"></span></th>
+          <th>Status</th>
+        </tr></thead>
+        <tbody id="queueBody"></tbody>
+      </table>
+      <div class="empty hidden" id="queueEmpty">No applications match this filter.</div>
+    </div>
+    <div class="card detail" id="detail"><div class="empty">Select an application from the queue to review it.</div></div>
+  </div>
+</section>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="shared.js"></script>
+<script>
+const SESSION='laas.officer.session'; let user=null; let apps=[]; let sel=null, filter='open', sortKey='submitted', sortDir='asc';
+
+function signIn(){ const id=document.getElementById('uid').value.trim().toLowerCase(), p=document.getElementById('pwd').value;
+  if(!OFFICERS[id] || p!=='demo'){ document.getElementById('e-login').textContent='User ID or password is incorrect.'; return; }
+  sessionStorage.setItem(SESSION, id); enter(); }
+function logout(){ sessionStorage.removeItem(SESSION); location.reload(); }
+function enter(){ const id=sessionStorage.getItem(SESSION); user=Object.assign({id}, OFFICERS[id]);
+  document.getElementById('login').classList.add('hidden'); document.getElementById('console').classList.remove('hidden');
+  document.getElementById('userBar').classList.remove('hidden'); document.getElementById('userName').textContent=`${user.name} · ${user.title} · limit ${INR(user.limit)}`;
+  refresh(); }
+function refresh(){ apps=loadApps(); renderQueue(); renderDetail(); }
+function persist(a){ const i=apps.findIndex(x=>x.ref===a.ref); if(i>=0) apps[i]=a; saveApps(apps); }
+
+function setFilter(f){ filter=f; document.querySelectorAll('#qfilters .chip').forEach(c=>c.setAttribute('aria-pressed', c.dataset.f===f)); renderQueue(); }
+function setSort(k){ if(sortKey===k) sortDir=sortDir==='asc'?'desc':'asc'; else { sortKey=k; sortDir='asc'; } renderQueue(); }
+function renderQueue(){
+  let list=apps.filter(a=> filter==='all' || (filter==='open'&&a.status==='UnderReview') || (filter==='docs'&&a.status==='DocsRequested') || (filter==='decided'&&['Approved','Rejected','CounterOffered','SentToLMS','Expired'].includes(a.status)));
+  list.sort((a,b)=>{ let x,y; if(sortKey==='amount'){x=a.amount;y=b.amount;} else if(sortKey==='grade'){x=a.grade;y=b.grade;} else {x=a.submittedAt;y=b.submittedAt;} return (x>y?1:x<y?-1:0)*(sortDir==='asc'?1:-1); });
+  ['submitted','amount','grade'].forEach(k=>document.getElementById('s-'+k).textContent = sortKey===k?(sortDir==='asc'?'↑':'↓'):'');
+  document.getElementById('queueCount').textContent=apps.filter(a=>a.status==='UnderReview').length+' awaiting review';
+  document.getElementById('queueBody').innerHTML=list.map(a=>{ const h=Math.round((Date.now()-a.submittedAt)/3600e3);
+    return `<tr class="item ${sel===a.ref?'sel':''}" onclick="select('${a.ref}')"><td>${h<1?'<1h':h<48?h+'h':Math.round(h/24)+'d'}</td><td><b>${a.name}</b><br><small>${a.ref}${a.eval.highRisk&&a.status==='UnderReview'?' · <span class="tag bad">High risk</span>':''}${a.queue==='Senior'&&a.status==='UnderReview'?' · <span class="tag pending">Senior</span>':''}</small></td><td>${INR(a.amount)}<br><small>${a.tenure} mo</small></td><td><span class="tag grade">${a.grade}</span></td><td>${statusTag(a.status)}</td></tr>`; }).join('');
+  document.getElementById('queueEmpty').classList.toggle('hidden', list.length>0);
+}
+function select(ref){ sel=ref; renderQueue(); renderDetail(); }
+function renderDetail(){
+  const a=apps.find(x=>x.ref===sel); const box=document.getElementById('detail');
+  if(!a){ box.innerHTML='<div class="empty">Select an application from the queue to review it.</div>'; return; }
+  const limit=user.limit; const over=a.amount>limit; const ev=a.eval; const labels=docTemplate(a.emp);
+  const banner = a.status!=='UnderReview' ? `<div class="banner info">No decision actions available in status ${statusTag(a.status)}.</div>`
+    : over ? `<div class="banner warn">Requested amount ${INR(a.amount)} exceeds your approval limit of ${INR(limit)}. Approve and counter-offer are disabled — escalate to a senior officer.</div>`
+    : ev.highRisk ? `<div class="banner bad">Flagged high risk — grade ${a.grade}. Review obligations and documents carefully.</div>` : '';
+  box.innerHTML=`
+    <h2>${a.name} <span class="tag grade">Grade ${a.grade}</span> ${statusTag(a.status)}</h2>
+    <div class="sub">${a.ref} · submitted ${fmtDT(a.submittedAt)} · ${a.queue} queue · mobile +91 ${a.mobile||'—'}</div>
+    ${banner}
+    <div class="grid2">
+      <div class="panel"><h3>Applicant</h3><div class="kv"><span>Age</span><span>${ev.age}</span><span>PAN</span><span>${a.pan} <span class="tag ok">Verified</span></span><span>Identity</span><span><span class="tag ok">Verified</span></span><span>Employment</span><span>${a.emp==='Salaried'?'Salaried':'Self-employed'} · ${a.employer}</span><span>Tenure with employer</span><span>${a.years} yrs</span><span>Net monthly income</span><span>${INR(a.income)}</span><span>Existing EMIs</span><span>${INR(a.existingEmi)}</span></div></div>
+      <div class="panel"><h3>Loan request</h3><div class="kv"><span>Amount</span><span>${INR(a.amount)}</span><span>Tenure</span><span>${a.tenure} months</span><span>Purpose</span><span>${a.purpose}</span><span>Grid rate (grade ${a.grade})</span><span>${a.rate}% p.a.</span><span>Proposed EMI</span><span>${INR(a.emi)}</span><span>FOIR post-loan</span><span>${Math.round(a.foir*100)}%</span><span>Loan-to-income</span><span>${ev.lti.toFixed(2)}×</span><span>Bureau score</span><span><b>${a.score}</b> · fetched at submission</span></div></div>
+    </div>
+    <div class="panel"><h3>Rule evaluation — ${ev.hard.filter(h=>!h.pass).length} hard-rule failure(s) · ${ev.pts} points → grade ${a.grade} · routing: ${ev.routing.replace(/([A-Z])/g,' $1').trim()}</h3>
+      <table class="rules"><thead><tr><th>Rule</th><th>Check</th><th>Input</th><th>Threshold</th><th>Result</th></tr></thead><tbody>
+      ${ev.hard.map(h=>`<tr class="${h.pass?'':'fail'}"><td>${h.id}</td><td>${h.name}</td><td>${h.input}</td><td>${h.threshold}</td><td class="${h.pass?'pass':'fail'}">${h.pass?'Pass':'Fail'}</td></tr>`).join('')}</tbody></table></div>
+    <div class="grid2">
+      <div class="panel"><h3>Documents</h3>${Object.entries(a.docs).map(([k,d])=>`<div class="doc"><div class="name">${labels[k]?labels[k].label:k}<small>${d.file||'—'}</small></div>${d.status==='Verified'?'<span class="tag ok">Verified</span>':d.status==='ReuploadRequested'?`<span class="tag warn">Re-upload · ${d.reason}</span>`:`<span class="tag pending">Pending</span>`}${a.status==='UnderReview'&&d.status!=='Verified'?`<button class="btn sm" onclick="verifyDoc('${a.ref}','${k}')">Verify</button>`:''}</div>`).join('')}</div>
+      <div class="panel"><h3>Activity</h3><ul class="history">${a.history.slice().reverse().map(h=>`<li><time>${new Date(h.t).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'})}</time>${h.text}</li>`).join('')}</ul></div>
+    </div>
+    ${a.status==='UnderReview'?`
+    <div class="panel"><h3>Decision — signed in as ${user.name}</h3>
+      <div class="decide">
+        <div><label>Outcome</label><select id="dOutcome" onchange="onOutcome()"><option value="">Choose…</option><option value="Approve" ${over?'disabled':''}>Approve</option><option value="Reject">Reject</option><option value="CounterOffer" ${over?'disabled':''}>Counter-offer</option><option value="RequestDocuments">Request documents</option>${over&&user.role==='officer'?'<option value="Escalate">Escalate to senior officer</option>':''}</select></div>
+        <div id="rf" class="hidden"><label id="rfLbl">Reason</label><select id="dReason"><option value="">Select a reason…</option>${Object.entries(REASONS).map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></div>
+        <div id="cf1" class="hidden"><label>Revised amount (₹, max ${INR(limit)})</label><input id="cAmount" type="number" step="5000" value="${Math.min(limit, Math.round(a.amount*0.6/5000)*5000)}"></div>
+        <div id="cf2" class="hidden"><label>Revised tenure (months)</label><input id="cTenure" type="number" min="12" max="60" value="${a.tenure}"></div>
+        <div id="df" class="hidden"><label>Document to re-upload</label><select id="dDoc">${Object.keys(a.docs).map(k=>`<option value="${k}">${labels[k]?labels[k].label:k}</option>`).join('')}</select></div>
+        <div class="full"><label>Notes</label><textarea id="dNotes" placeholder="Visible to auditors; not shown to the applicant."></textarea></div>
+        <div class="full" style="display:flex;gap:10px;align-items:center"><button class="btn primary" onclick="decide('${a.ref}')">Save decision</button><span id="dErr" class="err" style="margin:0"></span></div>
+      </div></div>`:''}`;
+}
+function onOutcome(){ const o=document.getElementById('dOutcome').value;
+  document.getElementById('cf1').classList.toggle('hidden',o!=='CounterOffer'); document.getElementById('cf2').classList.toggle('hidden',o!=='CounterOffer'); document.getElementById('df').classList.toggle('hidden',o!=='RequestDocuments');
+  const needsReason = o==='Reject'||o==='CounterOffer'||o==='RequestDocuments';
+  document.getElementById('rf').classList.toggle('hidden', !needsReason);
+  document.getElementById('rfLbl').textContent = o==='RequestDocuments' ? 'Reason shown to applicant' : 'Reason (required)';
+  document.getElementById('dErr').textContent=''; }
+function verifyDoc(ref,k){ const a=apps.find(x=>x.ref===ref); a.docs[k].status='Verified'; a.history.push({t:Date.now(),text:`${user.name} verified ${k}`}); persist(a); renderDetail(); }
+function decide(ref){
+  const a=apps.find(x=>x.ref===ref); const o=document.getElementById('dOutcome').value, r=document.getElementById('dReason').value, n=document.getElementById('dNotes').value.trim(); const err=document.getElementById('dErr'); const who=user.name, limit=user.limit, t=Date.now();
+  if(!o){ err.textContent='Choose an outcome.'; return; }
+  if((o==='Reject'||o==='CounterOffer') && !r){ err.textContent='A reason is required for reject and counter-offer.'; return; }
+  if(o==='Approve'){ if(Object.values(a.docs).some(d=>d.status!=='Verified')){ err.textContent='Verify all documents before approving.'; return; } a.status='Approved'; a.decidedBy=who; a.history.push({t,text:`${who} approved at ${a.rate}% p.a.${n?' — '+n:''}`}); }
+  else if(o==='Reject'){ a.status='Rejected'; a.reason=r; a.decidedBy=who; a.history.push({t,text:`${who} rejected — ${REASONS[r]}${n?' — '+n:''}`}); }
+  else if(o==='CounterOffer'){ const ca=+document.getElementById('cAmount').value, ct=+document.getElementById('cTenure').value;
+    if(!(ca>=50000&&ca<=limit)){ err.textContent=`Revised amount must be between ₹50,000 and ${INR(limit)}.`; return; } if(!(ct>=12&&ct<=60)){ err.textContent='Tenure must be 12–60 months.'; return; }
+    const rate=rateFor(a.grade,ct); a.counter={amount:ca,tenure:ct,rate,emi:emiCalc(ca,rate,ct),expires:t+7*864e5}; a.status='CounterOffered'; a.reason=r; a.decidedBy=who; a.history.push({t,text:`${who} counter-offered ${INR(ca)} over ${ct} months — ${REASONS[r]}; expires in 7 days`}); }
+  else if(o==='RequestDocuments'){ const k=document.getElementById('dDoc').value; a.docs[k].status='ReuploadRequested'; a.docs[k].reason=r?REASONS[r]:'Unreadable'; a.status='DocsRequested'; a.history.push({t,text:`${who} requested re-upload of ${k}${n?' — '+n:''}`}); }
+  else if(o==='Escalate'){ a.queue='Senior'; a.history.push({t,text:`${who} escalated to senior queue${n?' — '+n:''}`}); persist(a); toast('Escalated — sign in as r.kulkarni to decide'); renderQueue(); renderDetail(); return; }
+  a.decidedAt=t; a.history.push({t,text:'Audit event written · applicant notified by SMS and email'}); persist(a);
+  toast('Decision saved and applicant notified'); renderQueue(); renderDetail();
+}
+if(sessionStorage.getItem(SESSION) && OFFICERS[sessionStorage.getItem(SESSION)]) enter();
+</script>
+</body>
+</html>

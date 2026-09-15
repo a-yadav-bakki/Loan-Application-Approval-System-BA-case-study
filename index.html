@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loan Application & Approval — prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">Personal loan · Application & approval <small>Clickable prototype for requirements review</small></a>
+</header>
+<main>
+  <div class="landing">
+    <h1>Two applications, one set of rules</h1>
+    <p class="lede">Applicants apply and track their loan in the customer portal. Credit officers review and decide in the console. Both run the credit rules defined in <code>business-rules.md</code>, and anything submitted in one appears in the other.</p>
+    <div class="doors">
+      <a class="door" href="applicant.html">
+        <h2>Apply for a loan</h2>
+        <p>Customer portal. Sign in with your mobile number and OTP, complete a four-step application, and track its progress.</p>
+        <span>Open applicant portal</span>
+      </a>
+      <a class="door" href="officer.html">
+        <h2>Credit officer sign-in</h2>
+        <p>Internal console. Work the review queue, see rule results and documents, and approve, reject, counter-offer or request documents.</p>
+        <span>Open officer console</span>
+      </a>
+    </div>
+    <p class="meta">Demo data is kept in this browser only and is never sent anywhere. Sign-in details and the outcome cheat-sheet are in the README. <button class="btn sm" onclick="resetDemo();toast('Demo data reset')">Reset demo data</button></p>
+  </div>
+</main>
+<div class="toast" id="toast" role="status"></div>
+<script src="shared.js"></script>
+</body>
+</html>

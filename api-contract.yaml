@@ -1,0 +1,646 @@
+openapi: 3.0.3
+info:
+  title: Loan Application & Approval System API
+  version: 1.0.0
+  description: >
+    REST contract between the applicant portal / officer console and the LAAS
+    back end. Written by the Business Analyst as a shared understanding with
+    engineering; field names match the data entities in FRD.md section 7.
+servers:
+  - url: https://api.example-nbfc.in/laas/v1
+
+tags:
+  - name: Auth
+  - name: Applications
+  - name: Documents
+  - name: Decisions
+  - name: Queue
+  - name: Admin
+
+paths:
+  /auth/otp:
+    post:
+      tags: [Auth]
+      summary: Send OTP to a mobile number (FR-APP-01)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mobile]
+              properties:
+                mobile: { type: string, pattern: '^[6-9][0-9]{9}$', example: '9876543210' }
+      responses:
+        '202': { description: OTP sent }
+        '429': { description: Too many requests; lockout active }
+
+  /auth/verify:
+    post:
+      tags: [Auth]
+      summary: Verify OTP and issue session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mobile, otp]
+              properties:
+                mobile: { type: string }
+                otp: { type: string, minLength: 6, maxLength: 6 }
+      responses:
+        '200':
+          description: Verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  applicant_id: { type: string }
+        '401': { description: Invalid or expired OTP }
+
+  /applications:
+    post:
+      tags: [Applications]
+      summary: Create a draft application (FR-APP-03)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          description: Draft created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Application' }
+    get:
+      tags: [Applications]
+      summary: List the caller's applications
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Application' }
+
+  /applications/{ref}:
+    parameters:
+      - $ref: '#/components/parameters/ref'
+    get:
+      tags: [Applications]
+      summary: Get an application with status, decision and tracker (FR-NOT-01, FR-DEC-06/07)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Application' }
+        '404': { description: Not found }
+    put:
+      tags: [Applications]
+      summary: Save draft details for a step (FR-APP-03 to FR-APP-06)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApplicationInput' }
+      responses:
+        '200': { description: Saved }
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidationError' }
+        '409': { description: Application is not in Draft or Docs requested state }
+
+  /applications/{ref}/submit:
+    post:
+      tags: [Applications]
+      summary: Submit with bureau consent; starts KYC and decisioning (FR-APP-09, FR-APP-10)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ref' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bureau_consent]
+              properties:
+                bureau_consent: { type: boolean }
+                consent_timestamp: { type: string, format: date-time }
+      responses:
+        '202':
+          description: Accepted; status is Submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  application_ref: { type: string, example: LN-2026-000123 }
+                  status: { $ref: '#/components/schemas/Status' }
+        '400': { description: Consent missing or required fields incomplete }
+
+  /applications/{ref}/documents:
+    parameters: [{ $ref: '#/components/parameters/ref' }]
+    post:
+      tags: [Documents]
+      summary: Upload a document (FR-KYC-03, FR-KYC-04)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [type, file]
+              properties:
+                type: { $ref: '#/components/schemas/DocumentType' }
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: Uploaded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '413': { description: File exceeds 5 MB }
+        '415': { description: Unsupported format (PDF, JPG, PNG only) }
+    get:
+      tags: [Documents]
+      summary: List documents for an application
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Document' }
+
+  /applications/{ref}/documents/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ref'
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      tags: [Documents]
+      summary: Officer sets document verification status (FR-KYC-05, FR-KYC-06)
+      security: [{ bearerAuth: [officer] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verification_status]
+              properties:
+                verification_status:
+                  type: string
+                  enum: [Verified, Rejected, ReuploadRequested]
+                rejection_reason:
+                  type: string
+                  enum: [Unreadable, WrongDocument, Expired, NameMismatch, Other]
+                notes: { type: string, maxLength: 500 }
+      responses:
+        '200': { description: Updated; application status may change to Docs requested }
+        '400': { description: rejection_reason required for Rejected / ReuploadRequested }
+
+  /applications/{ref}/evaluation:
+    get:
+      tags: [Decisions]
+      summary: Rule evaluation results and bureau summary (FR-DEC-02, FR-OFF-02)
+      security: [{ bearerAuth: [officer] }]
+      parameters: [{ $ref: '#/components/parameters/ref' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Evaluation' }
+
+  /applications/{ref}/lock:
+    post:
+      tags: [Decisions]
+      summary: Lock an application to the current officer for 30 minutes (FR-OFF-06)
+      security: [{ bearerAuth: [officer] }]
+      parameters: [{ $ref: '#/components/parameters/ref' }]
+      responses:
+        '200': { description: Locked }
+        '423':
+          description: Locked by another officer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  locked_by: { type: string }
+                  expires_at: { type: string, format: date-time }
+
+  /applications/{ref}/decision:
+    post:
+      tags: [Decisions]
+      summary: Record an officer decision (FR-OFF-03, FR-OFF-04, FR-OFF-05)
+      security: [{ bearerAuth: [officer] }]
+      parameters: [{ $ref: '#/components/parameters/ref' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome]
+              properties:
+                outcome:
+                  type: string
+                  enum: [Approve, Reject, CounterOffer, RequestDocuments, Escalate]
+                reason_code: { $ref: '#/components/schemas/ReasonCode' }
+                notes: { type: string, maxLength: 1000 }
+                counter_amount: { type: integer, minimum: 50000, maximum: 1500000 }
+                counter_tenure: { type: integer, minimum: 12, maximum: 60 }
+      responses:
+        '200':
+          description: Decision recorded; audit event written
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Decision' }
+        '400': { description: reason_code required for Reject / CounterOffer }
+        '403': { description: Amount exceeds officer approval limit; use Escalate }
+        '423': { description: Application locked by another officer }
+
+  /applications/{ref}/offer-response:
+    post:
+      tags: [Applications]
+      summary: Applicant accepts or declines a counter-offer (FR-OFF-08)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ref' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [response]
+              properties:
+                response: { type: string, enum: [Accept, Decline] }
+      responses:
+        '200': { description: Status updated to Approved or Rejected }
+        '410': { description: Offer expired }
+
+  /queue:
+    get:
+      tags: [Queue]
+      summary: Officer work queue (FR-OFF-01)
+      security: [{ bearerAuth: [officer] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/Status' }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [submitted_at, amount, risk_grade], default: submitted_at }
+        - name: order
+          in: query
+          schema: { type: string, enum: [asc, desc], default: asc }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/QueueItem' }
+
+  /queue/{ref}/reassign:
+    post:
+      tags: [Queue]
+      summary: Senior officer reassigns a queue item (FR-OFF-07)
+      security: [{ bearerAuth: [senior_officer] }]
+      parameters: [{ $ref: '#/components/parameters/ref' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [officer_id]
+              properties:
+                officer_id: { type: string }
+      responses:
+        '200': { description: Reassigned }
+
+  /admin/rules:
+    get:
+      tags: [Admin]
+      summary: Get the active rule set
+      security: [{ bearerAuth: [admin] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RuleSet' }
+    put:
+      tags: [Admin]
+      summary: Publish a new rule-set version with effective date (FR-ADM-01, FR-ADM-02)
+      security: [{ bearerAuth: [admin] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RuleSet' }
+      responses:
+        '201': { description: New version created }
+
+  /admin/rules/{version}:
+    get:
+      tags: [Admin]
+      summary: Get a historical rule-set version
+      security: [{ bearerAuth: [admin] }]
+      parameters:
+        - name: version
+          in: path
+          required: true
+          schema: { type: string, example: '1.0' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RuleSet' }
+
+  /admin/rate-grid:
+    put:
+      tags: [Admin]
+      summary: Update interest-rate grid (FR-ADM-03)
+      security: [{ bearerAuth: [admin] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RateGrid' }
+      responses:
+        '201': { description: New grid version created }
+
+  /admin/audit:
+    get:
+      tags: [Admin]
+      summary: Query the audit log (FR-ADM-04)
+      security: [{ bearerAuth: [admin] }]
+      parameters:
+        - name: application_ref
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AuditEvent' }
+
+  /admin/reports:
+    get:
+      tags: [Admin]
+      summary: Operational reports (FR-ADM-05)
+      security: [{ bearerAuth: [admin] }]
+      parameters:
+        - name: report
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [status_summary, approval_by_grade, turnaround, officer_productivity]
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200': { description: Report rows (JSON or CSV by Accept header) }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  parameters:
+    ref:
+      name: ref
+      in: path
+      required: true
+      description: Application reference
+      schema: { type: string, pattern: '^LN-[0-9]{4}-[0-9]{6}$', example: LN-2026-000123 }
+
+  schemas:
+    Status:
+      type: string
+      enum: [Draft, Submitted, Verification, UnderReview, DocsRequested, Approved, CounterOffered, Rejected, Withdrawn, Expired, SentToLMS]
+
+    DocumentType:
+      type: string
+      enum: [IdentityProof, AddressProof, BankStatement, SalarySlip, ITR]
+
+    ReasonCode:
+      type: string
+      enum:
+        - AGE_OUT_OF_RANGE
+        - INCOME_BELOW_MIN
+        - SCORE_BELOW_MIN
+        - RECENT_DEFAULT
+        - KYC_FAILED
+        - FOIR_EXCEEDED
+        - NEGATIVE_LIST
+        - INCOME_UNVERIFIABLE
+        - DOCUMENT_INCONSISTENCY
+        - AMOUNT_ABOVE_RISK_APPETITE
+        - OTHER
+
+    ApplicationInput:
+      type: object
+      properties:
+        full_name: { type: string }
+        dob: { type: string, format: date }
+        pan: { type: string, pattern: '^[A-Z]{5}[0-9]{4}[A-Z]$' }
+        address: { type: string }
+        employment_type: { type: string, enum: [Salaried, SelfEmployed] }
+        employer: { type: string }
+        employment_years: { type: number }
+        net_monthly_income: { type: integer, minimum: 0 }
+        existing_emi: { type: integer, minimum: 0 }
+        amount: { type: integer, minimum: 50000, maximum: 1500000, multipleOf: 5000 }
+        tenure_months: { type: integer, minimum: 12, maximum: 60 }
+        purpose: { type: string, enum: [Medical, Education, HomeRenovation, Wedding, Travel, DebtConsolidation, Other] }
+
+    Application:
+      allOf:
+        - $ref: '#/components/schemas/ApplicationInput'
+        - type: object
+          properties:
+            application_ref: { type: string }
+            applicant_id: { type: string }
+            status: { $ref: '#/components/schemas/Status' }
+            risk_grade: { type: string, enum: [A, B, C, D], nullable: true }
+            interest_rate: { type: number, nullable: true, example: 13.5 }
+            indicative_emi: { type: integer }
+            foir: { type: number, example: 0.19 }
+            rule_set_version: { type: string }
+            submitted_at: { type: string, format: date-time, nullable: true }
+            decided_at: { type: string, format: date-time, nullable: true }
+            decision_reason: { $ref: '#/components/schemas/ReasonCode' }
+            counter_offer:
+              type: object
+              nullable: true
+              properties:
+                amount: { type: integer }
+                tenure_months: { type: integer }
+                emi: { type: integer }
+                expires_at: { type: string, format: date-time }
+            tracker:
+              type: array
+              items:
+                type: object
+                properties:
+                  stage: { type: string, enum: [Submitted, Verification, UnderReview, Decision, SentForDisbursement] }
+                  state: { type: string, enum: [Completed, Current, Upcoming, Skipped] }
+                  reached_at: { type: string, format: date-time, nullable: true }
+
+    Document:
+      type: object
+      properties:
+        document_id: { type: string }
+        type: { $ref: '#/components/schemas/DocumentType' }
+        file_name: { type: string }
+        uploaded_at: { type: string, format: date-time }
+        verification_status: { type: string, enum: [Pending, Verified, Rejected, ReuploadRequested] }
+        rejection_reason: { type: string, nullable: true }
+        reviewer_id: { type: string, nullable: true }
+
+    Evaluation:
+      type: object
+      properties:
+        rule_set_version: { type: string }
+        bureau_score: { type: integer, example: 780 }
+        bureau_fetched_at: { type: string, format: date-time }
+        bureau_summary:
+          type: object
+          properties:
+            active_accounts: { type: integer }
+            total_outstanding: { type: integer }
+            recent_default: { type: boolean }
+        computed:
+          type: object
+          properties:
+            age: { type: integer }
+            proposed_emi: { type: integer }
+            foir: { type: number }
+            lti: { type: number }
+        hard_rules:
+          type: array
+          items:
+            type: object
+            properties:
+              rule_id: { type: string, example: BR-H03 }
+              input_value: { type: string }
+              threshold: { type: string }
+              result: { type: string, enum: [Pass, Fail] }
+        score_points: { type: integer }
+        risk_grade: { type: string, enum: [A, B, C, D] }
+        routing: { type: string, enum: [AutoApprove, AutoReject, OfficerQueue, SeniorQueue] }
+
+    Decision:
+      type: object
+      properties:
+        decision_id: { type: string }
+        application_ref: { type: string }
+        type: { type: string, enum: [Auto, Manual] }
+        outcome: { type: string }
+        reason_code: { $ref: '#/components/schemas/ReasonCode' }
+        notes: { type: string }
+        decided_by: { type: string }
+        decided_at: { type: string, format: date-time }
+        new_status: { $ref: '#/components/schemas/Status' }
+
+    QueueItem:
+      type: object
+      properties:
+        application_ref: { type: string }
+        applicant_name: { type: string }
+        amount: { type: integer }
+        tenure_months: { type: integer }
+        risk_grade: { type: string }
+        status: { $ref: '#/components/schemas/Status' }
+        submitted_at: { type: string, format: date-time }
+        hours_in_queue: { type: number }
+        queue: { type: string, enum: [Officer, Senior] }
+        flags: { type: array, items: { type: string, example: HighRisk } }
+        locked_by: { type: string, nullable: true }
+
+    RuleSet:
+      type: object
+      properties:
+        version: { type: string, example: '1.1' }
+        effective_from: { type: string, format: date-time }
+        min_age: { type: integer, example: 21 }
+        max_age: { type: integer, example: 60 }
+        min_income_salaried: { type: integer, example: 20000 }
+        min_income_self_employed: { type: integer, example: 30000 }
+        min_bureau_score: { type: integer, example: 650 }
+        max_foir: { type: number, example: 0.60 }
+        stp_min_score: { type: integer, example: 750 }
+        stp_max_foir: { type: number, example: 0.40 }
+        stp_max_amount: { type: integer, example: 500000 }
+        officer_limit: { type: integer, example: 500000 }
+        senior_officer_limit: { type: integer, example: 1500000 }
+
+    RateGrid:
+      type: object
+      properties:
+        version: { type: string }
+        effective_from: { type: string, format: date-time }
+        rates:
+          type: array
+          items:
+            type: object
+            properties:
+              grade: { type: string, enum: [A, B, C, D] }
+              tenure_min: { type: integer }
+              tenure_max: { type: integer }
+              rate: { type: number, example: 13.5 }
+
+    AuditEvent:
+      type: object
+      properties:
+        event_id: { type: string }
+        entity: { type: string }
+        entity_id: { type: string }
+        action: { type: string }
+        actor: { type: string }
+        timestamp: { type: string, format: date-time }
+        before: { type: object, nullable: true }
+        after: { type: object, nullable: true }
+
+    ValidationError:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string, example: pan }
+              message: { type: string, example: Enter PAN in the format ABCDE1234F }
